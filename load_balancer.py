@@ -14,23 +14,23 @@ SERVERS = [
 ALGORITHM = os.getenv("LB_ALGORITHM", "least_connections")
 
 # Metrics tracking
-active_connections = {s: 0 for s in SERVERS}
-avg_response_times = {s: 0.001 for s in SERVERS}
+active_connections = {s[0]: 0 for s in SERVERS}
+avg_response_times = {s[0]: 0.001 for s in SERVERS}
 
 def select_server():
-    """Selects a server based on the active dynamic load-balancing algorithm."""
+    """Selects a server (host, port) based on the active dynamic load-balancing algorithm."""
 
     if ALGORITHM == "least_connections":
         # Route to server with fewest active socket connections
-        target = min(SERVERS, key=lambda s: active_connections[s])
+        target = min(SERVERS, key=lambda s: active_connections[s[0]])
     elif ALGORITHM == "least_response_time":
         # Route based on combined latency metric and active connections
         target = min( 
             SERVERS,
-            key=lambda s: avg_response_times[s] * (active_connections[s] + 1),
+            key=lambda s: avg_response_times[s[0]] * (active_connections[s[0]] + 1),
         )
     else:
-        target = SERVERS
+        target = SERVERS[0]
     return target
 
 async def pipe(reader, writer):
