@@ -1,0 +1,34 @@
+services:
+  # In-memory database used to cache previously calculated word counts.
+  redis:
+    image: redis:7.4-alpine
+    container_name: wordcount-redis
+    ports:
+      - "6379:6379"
+
+  # Server that receives remote requests and processes word counts.
+  server:
+    build: .
+    image: ads:lab
+    container_name: wordcount-server
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "18861:18861"
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+
+  # Client that sends keyword-count requests to the server.
+  client:
+    image: ads:lab
+    container_name: wordcount-client
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - server
+    command: ["python", "-u", "client.py"]
+    stdin_open: true
+    tty: true
