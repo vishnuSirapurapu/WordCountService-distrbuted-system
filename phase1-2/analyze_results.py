@@ -1,3 +1,4 @@
+import os
 import csv
 from collections import defaultdict
 
@@ -5,11 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-INPUT_FILE = "latency_results.csv"
-SUMMARY_FILE = "latency_summary.csv"
+INPUT_FILE = "results/latency_results.csv"
+SUMMARY_FILE = "results/latency_summary.csv"
 
 
 def main():
+    os.makedirs("results", exist_ok=True)
+
     # Group individual latency measurements by target request rate.
     grouped_latencies = defaultdict(list)
 
@@ -69,7 +72,7 @@ def main():
     plt.xticks(rates)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig("average_latency.png", dpi=300)
+    plt.savefig("results/average_latency.png", dpi=300)
     plt.close()
 
     # Figure 2: 99th-percentile (tail) latency.
@@ -81,12 +84,12 @@ def main():
     plt.xticks(rates)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig("p99_latency.png", dpi=300)
+    plt.savefig("results/p99_latency.png", dpi=300)
     plt.close()
 
     print("\nAnalysis complete.")
     print(f"Summary saved to {SUMMARY_FILE}")
-    print("Figures saved to average_latency.png and p99_latency.png")
+    print("Figures saved to results/average_latency.png and results/p99_latency.png")
 
 
 if __name__ == "__main__":

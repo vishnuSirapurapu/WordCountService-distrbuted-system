@@ -1,3 +1,4 @@
+import os
 import csv
 import time
 import rpyc
@@ -91,8 +92,10 @@ def main():
         # Close the connection when all five tests are finished.
         connection.close()
 
+    os.makedirs("results", exist_ok=True)
+
     # Save raw measurements so the analysis can be repeated later.
-    with open("latency_results.csv", "w", newline="") as file:
+    with open("results/latency_results.csv", "w", newline="") as file:
         writer = csv.DictWriter(
             file,
             fieldnames=["target_rate_rps", "latency_ms"]
@@ -100,7 +103,7 @@ def main():
         writer.writeheader()
         writer.writerows(all_results)
 
-    print("Individual latency measurements saved to latency_results.csv")
+    print("Individual latency measurements saved to results/latency_results.csv")
 
 
 if __name__ == "__main__":
