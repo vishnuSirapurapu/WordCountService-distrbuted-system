@@ -11,7 +11,7 @@ SERVERS = [
 
 # Set algorithm
 # Options: "least_connections" or "least_response_time"
-ALGORITHM = os.getenv("LB_ALGORITHM", "least_connections")
+ALGORITHM = os.getenv("ALGORITHM", "least_connections")
 
 # Metrics tracking
 active_connections = {s[0]: 0 for s in SERVERS}

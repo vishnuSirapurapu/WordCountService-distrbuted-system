@@ -6,12 +6,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-INPUT_FILE = "results/latency_results.csv"
-SUMMARY_FILE = "results/latency_summary.csv"
+RESULTS_DIR = "results"
+
+# Detect active algorithm
+ALGORITHM = os.environ.get("ALGORITHM", "least_connections").strip().lower()
+
+INPUT_FILE = os.path.join(RESULTS_DIR, "latency_results.csv")
+SUMMARY_FILE = os.path.join(RESULTS_DIR, "latency_summary.csv")
+ALGO_SUMMARY_FILE = os.path.join(RESULTS_DIR, f"latency_summary_{ALGORITHM}.csv")
 
 
 def main():
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
 
     # Group individual latency measurements by target request rate.
     grouped_latencies = defaultdict(list)
@@ -48,17 +54,18 @@ def main():
             f"P99: {p99_latency:.4f} ms"
         )
 
-    # Save the calculated statistics in a separate CSV file.
-    with open(SUMMARY_FILE, "w", newline="") as file:
-        fieldnames = [
-            "target_rate_rps",
-            "request_count",
-            "average_latency_ms",
-            "p99_latency_ms",
-        ]
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(summary)
+    # Save to latency_summary.csv and the algo-specific CSV automatically
+    for filepath in [SUMMARY_FILE, ALGO_SUMMARY_FILE]:
+        with open(filepath, "w", newline="") as file:
+            fieldnames = [
+                "target_rate_rps",
+                "request_count",
+                "average_latency_ms",
+                "p99_latency_ms",
+            ]
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(summary)
 
     averages = [item["average_latency_ms"] for item in summary]
     p99_values = [item["p99_latency_ms"] for item in summary]
@@ -88,8 +95,7 @@ def main():
     plt.close()
 
     print("\nAnalysis complete.")
-    print(f"Summary saved to {SUMMARY_FILE}")
-    print("Figures saved to results/average_latency.png and results/p99_latency.png")
+    print(f"Summary saved to {SUMMARY_FILE} and {ALGO_SUMMARY_FILE}")
 
 
 if __name__ == "__main__":

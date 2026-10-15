@@ -55,6 +55,8 @@ services:
       - .:/app
     ports:
       - "18861:18861"
+    environment:
+      - ALGORITHM=least_connections
     depends_on:
       - server1
       - server2
