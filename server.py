@@ -1,10 +1,12 @@
 import os
 import re
-
+import socket
 import redis
 import rpyc
 from rpyc.utils.server import ThreadedServer
 
+# Store hostname
+HOSTNAME = socket.gethostname()
 
 # Directory containing the text files available to the service.
 DOCUMENT_DIR = "/app/documents"
@@ -33,6 +35,11 @@ class WordCountService(rpyc.Service):
         print("Connected to Redis", flush=True)
 
     def exposed_count_word(self, keyword, document_ref):
+        print(
+            f"[{HOSTNAME}] Processing request for keyword: '{keyword}'",
+            flush=True
+        )
+        
         # RPyC exposes methods prefixed with 'exposed_' to remote clients.
         # Reject an empty keyword.
         if not keyword or not keyword.strip():
