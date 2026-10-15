@@ -14,6 +14,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
+      - .:/Documents:/app/documents
     ports:
       - "18861:18861"
     depends_on:
