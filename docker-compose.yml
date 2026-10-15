@@ -6,21 +6,59 @@ services:
     ports:
       - "6379:6379"
 
-  # Server that receives remote requests and processes word counts.
-  server:
+  # Server Replica 1.
+  server1:
     build: .
     image: ads:lab
-    container_name: wordcount-server
+    container_name: wordcount-server1
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+  
+  # Server Replica 2.
+  server2:
+    build: .
+    image: ads:lab
+    container_name: wordcount-server2
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+
+  # Server Replica 3.
+  server3:
+    build: .
+    image: ads:lab
+    container_name: wordcount-server3
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+
+  # Custom Load Balancer.
+  load_balancer:
+    build: .
+    image: ads:lab
+    container_name: wordcount-loadbalancer
     working_dir: /app
     volumes:
       - .:/app
     ports:
       - "18861:18861"
     depends_on:
-      - redis
-    command: ["python", "-u", "server.py"]
+      - server1
+      - server2
+      - server3
+    command: ["python", "-u", "load_balancer.py"]
 
-  # Client that sends keyword-count requests to the server.
+  # Client that sends keyword-count requests to the load balancer.
   client:
     image: ads:lab
     container_name: wordcount-client
@@ -28,7 +66,7 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - server
+      - load_balancer
     command: ["python", "-u", "client.py"]
     stdin_open: true
     tty: true
