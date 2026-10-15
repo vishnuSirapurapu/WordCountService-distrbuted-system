@@ -4,7 +4,7 @@ import rpyc
 
 
 # The server hostname is the Docker Compose service name.
-SERVER_HOST = "server"
+SERVER_HOST = "load_balancer"
 SERVER_PORT = 18861
 
 # Use the sample document and keyword for every request.

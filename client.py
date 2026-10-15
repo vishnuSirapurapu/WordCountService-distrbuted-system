@@ -1,7 +1,7 @@
 import rpyc
 
 # Docker Compose service name and RPyC server port.
-SERVER_HOST = "server"
+SERVER_HOST = "load_balancer"
 SERVER_PORT = 18861
 
 
