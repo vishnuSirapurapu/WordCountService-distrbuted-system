@@ -14,7 +14,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-      - .:/Documents:/app/documents
+      - ..:/Documents:/app/documents
     ports:
       - "18861:18861"
     depends_on:
@@ -30,6 +30,7 @@ services:
       - .:/app
     depends_on:
       - server
+    restart: on-failure
     command: ["python", "-u", "client.py"]
     stdin_open: true
     tty: true

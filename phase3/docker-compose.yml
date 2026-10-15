@@ -14,7 +14,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-      - .:/Documents:/app/documents
+      - ..:/Documents:/app/documents
     depends_on:
       - redis
     command: ["python", "-u", "server.py"]
@@ -27,7 +27,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-      - .:/Documents:/app/documents
+      - ..:/Documents:/app/documents
     depends_on:
       - redis
     command: ["python", "-u", "server.py"]
@@ -40,7 +40,7 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-      - .:/Documents:/app/documents
+      - ..:/Documents:/app/documents
     depends_on:
       - redis
     command: ["python", "-u", "server.py"]
@@ -70,6 +70,7 @@ services:
       - .:/app
     depends_on:
       - load_balancer
+    restart: on-failure
     command: ["python", "-u", "client.py"]
     stdin_open: true
     tty: true
