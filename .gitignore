@@ -19,3 +19,6 @@ Thumbs.db
 
 # Temporary log files
 *.log
+
+# Benchmark output is generated locally and must not be committed.
+phase3/results/

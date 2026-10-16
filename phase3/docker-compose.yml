@@ -45,7 +45,7 @@ services:
       - redis
     command: ["python", "-u", "server.py"]
 
-  # Custom Load Balancer.
+  # Custom dynamic load balancer in front of the three explicit replicas.
   load_balancer:
     build: .
     image: ads:lab
@@ -56,7 +56,7 @@ services:
     ports:
       - "18861:18861"
     environment:
-      - ALGORITHM=least_connections
+      - ALGORITHM=${ALGORITHM:-least_connections}
     depends_on:
       - server1
       - server2

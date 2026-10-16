@@ -1,101 +1,108 @@
-import os
+"""Summarize benchmark CSV data and create average/P99 latency figures."""
+
+import argparse
 import csv
+import os
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 
-RESULTS_DIR = "results"
+def percentile(values, percentile_value):
+    """Calculate a percentile using linear interpolation."""
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * percentile_value / 100
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    fraction = position - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
-# Detect active algorithm
-ALGORITHM = os.environ.get("ALGORITHM", "least_connections").strip().lower()
 
-INPUT_FILE = os.path.join(RESULTS_DIR, "latency_results.csv")
-SUMMARY_FILE = os.path.join(RESULTS_DIR, "latency_summary.csv")
-ALGO_SUMMARY_FILE = os.path.join(RESULTS_DIR, f"latency_summary_{ALGORITHM}.csv")
+def read_latencies(input_path):
+    grouped = defaultdict(list)
+    with open(input_path, "r", newline="", encoding="utf-8") as file:
+        for row in csv.DictReader(file):
+            if row["success"] != "1":
+                continue
+            grouped[int(row["target_rate_rps"])].append(
+                float(row["latency_ms"])
+            )
+    return grouped
+
+
+def write_summary(output_path, summary):
+    output_directory = os.path.dirname(output_path)
+    if output_directory:
+        os.makedirs(output_directory, exist_ok=True)
+    fieldnames = [
+        "target_rate_rps",
+        "request_count",
+        "average_latency_ms",
+        "p99_latency_ms",
+    ]
+    with open(output_path, "w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(summary)
+
+
+def create_plot(summary, value_key, title, output_path):
+    rates = [row["target_rate_rps"] for row in summary]
+    values = [row[value_key] for row in summary]
+    plt.figure(figsize=(8, 5))
+    plt.plot(rates, values, marker="o")
+    plt.xlabel("Keyword request rate (requests/second)")
+    plt.ylabel("Request execution latency (ms)")
+    plt.title(title)
+    plt.xticks(rates)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", default="results/latency_results.csv")
+    parser.add_argument("--output", default="results/latency_summary.csv")
+    args = parser.parse_args()
+    if not os.path.isfile(args.input):
+        parser.error(f"input CSV does not exist: {args.input}")
+    return args
 
 
 def main():
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    args = parse_args()
+    grouped = read_latencies(args.input)
+    if not grouped:
+        raise ValueError("The input CSV contains no successful requests.")
 
-    # Group individual latency measurements by target request rate.
-    grouped_latencies = defaultdict(list)
-
-    with open(INPUT_FILE, "r", newline="") as file:
-        reader = csv.DictReader(file)
-
-        for row in reader:
-            rate = int(row["target_rate_rps"])
-            latency = float(row["latency_ms"])
-            grouped_latencies[rate].append(latency)
-
-    rates = sorted(grouped_latencies.keys())
     summary = []
-
-    # Calculate the average and P99 latency for each rate.
-    for rate in rates:
-        latencies = grouped_latencies[rate]
-
-        average_latency = sum(latencies) / len(latencies)
-        p99_latency = float(np.percentile(latencies, 99))
-
+    for rate in sorted(grouped):
+        latencies = grouped[rate]
         summary.append({
             "target_rate_rps": rate,
             "request_count": len(latencies),
-            "average_latency_ms": average_latency,
-            "p99_latency_ms": p99_latency,
+            "average_latency_ms": sum(latencies) / len(latencies),
+            "p99_latency_ms": percentile(latencies, 99),
         })
 
-        print(
-            f"{rate} requests/sec | "
-            f"Count: {len(latencies)} | "
-            f"Average: {average_latency:.4f} ms | "
-            f"P99: {p99_latency:.4f} ms"
-        )
-
-    # Save to latency_summary.csv and the algo-specific CSV automatically
-    for filepath in [SUMMARY_FILE, ALGO_SUMMARY_FILE]:
-        with open(filepath, "w", newline="") as file:
-            fieldnames = [
-                "target_rate_rps",
-                "request_count",
-                "average_latency_ms",
-                "p99_latency_ms",
-            ]
-            writer = csv.DictWriter(file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(summary)
-
-    averages = [item["average_latency_ms"] for item in summary]
-    p99_values = [item["p99_latency_ms"] for item in summary]
-
-    # Figure 1: average request execution latency.
-    plt.figure(figsize=(8, 5))
-    plt.plot(rates, averages, marker="o")
-    plt.xlabel("Keyword request rate (requests/second)")
-    plt.ylabel("Request execution latency (ms)")
-    plt.title("Average Request Execution Latency")
-    plt.xticks(rates)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig("results/average_latency.png", dpi=300)
-    plt.close()
-
-    # Figure 2: 99th-percentile (tail) latency.
-    plt.figure(figsize=(8, 5))
-    plt.plot(rates, p99_values, marker="o")
-    plt.xlabel("Keyword request rate (requests/second)")
-    plt.ylabel("Request execution latency (ms)")
-    plt.title("99th-Percentile (P99) Request Execution Latency")
-    plt.xticks(rates)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig("results/p99_latency.png", dpi=300)
-    plt.close()
-
-    print("\nAnalysis complete.")
-    print(f"Summary saved to {SUMMARY_FILE} and {ALGO_SUMMARY_FILE}")
+    write_summary(args.output, summary)
+    output_directory = os.path.dirname(args.output) or "."
+    stem = os.path.splitext(os.path.basename(args.output))[0]
+    create_plot(
+        summary,
+        "average_latency_ms",
+        "Average Request Execution Latency",
+        os.path.join(output_directory, f"{stem}_average.png"),
+    )
+    create_plot(
+        summary,
+        "p99_latency_ms",
+        "99th-Percentile Request Execution Latency",
+        os.path.join(output_directory, f"{stem}_p99.png"),
+    )
+    print(f"Summary saved to {args.output}", flush=True)
 
 
 if __name__ == "__main__":

@@ -1,68 +1,74 @@
+"""TCP load balancer for the Phase 3 word-count replicas."""
+
 import asyncio
 import os
 import time
 
-# List of server service names
-SERVERS = [
+
+SERVERS = (
     ("server1", 18861),
     ("server2", 18861),
-    ("server3", 18861)
-]
+    ("server3", 18861),
+)
+ALLOWED_ALGORITHMS = {"least_connections", "least_response_time"}
+ALGORITHM = os.getenv("ALGORITHM", "least_connections").strip().lower()
 
-# Set algorithm
-# Options: "least_connections" or "least_response_time"
-ALGORITHM = os.getenv("ALGORITHM", "least_connections")
+if ALGORITHM not in ALLOWED_ALGORITHMS:
+    raise ValueError(
+        f"Unsupported ALGORITHM={ALGORITHM!r}; "
+        f"choose one of {sorted(ALLOWED_ALGORITHMS)}"
+    )
 
-# Metrics tracking
-active_connections = {s[0]: 0 for s in SERVERS}
-avg_response_times = {s[0]: 0.001 for s in SERVERS}
+active_connections = {host: 0 for host, _ in SERVERS}
+average_response_times = {host: 0.001 for host, _ in SERVERS}
+tie_break_index = 0
+
 
 def select_server():
-    """Selects a server (host, port) based on the active dynamic load-balancing algorithm."""
-
+    """Select the least-loaded server and rotate equal-score ties."""
     if ALGORITHM == "least_connections":
-        # Route to server with fewest active socket connections
-        target = min(SERVERS, key=lambda s: active_connections[s[0]])
-    elif ALGORITHM == "least_response_time":
-        # Route based on combined latency metric and active connections
-        target = min( 
-            SERVERS,
-            key=lambda s: avg_response_times[s[0]] * (active_connections[s[0]] + 1),
-        )
+        scores = {
+            host: active_connections[host]
+            for host, _ in SERVERS
+        }
     else:
-        target = SERVERS[0]
-    return target
+        scores = {
+            host: average_response_times[host] * (active_connections[host] + 1)
+            for host, _ in SERVERS
+        }
+
+    best_score = min(scores.values())
+    candidates = [
+        server for server in SERVERS if scores[server[0]] == best_score
+    ]
+    selected = candidates[tie_break_index % len(candidates)]
+    return selected
+
 
 async def pipe(reader, writer):
-    """Bridge a TCP byte stream between client and server sockets."""
-    
+    """Forward bytes until the source closes its half of the connection."""
     try:
-        while True:
-            data = await reader.read(4096)
-            if not data:
-                break
+        while data := await reader.read(4096):
             writer.write(data)
             await writer.drain()
-    except Exception:
-        pass
     finally:
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
+        writer.close()
+        await writer.wait_closed()
 
 
 async def handle_client(client_reader, client_writer):
-    """Handle an incoming client connection and proxy it to a backend server."""
-    
+    """Proxy one client TCP connection to a dynamically selected replica."""
+    global tie_break_index
+
     target_host, target_port = select_server()
+    tie_break_index += 1
     active_connections[target_host] += 1
-    start_time = time.perf_counter()
+    started = time.perf_counter()
 
     print(
-        f"[LoadBalancer] [{ALGORITHM}] Routing client request -> {target_host} "
-        f"(Active conns: {active_connections[target_host]})",
+        f"[LoadBalancer] algorithm={ALGORITHM} "
+        f"backend={target_host} "
+        f"active={active_connections[target_host]}",
         flush=True,
     )
 
@@ -71,32 +77,21 @@ async def handle_client(client_reader, client_writer):
             target_host,
             target_port,
         )
-    except Exception as error:
-        print(
-            f"[LoadBalancer] Failed to connect to backend {target_host}: {error}",
-            flush=True,
-        )
-        active_connections[target_host] = max(
-            0,
-            active_connections[target_host] - 1,
-        )
-        client_writer.close()
-        await client_writer.wait_closed()
-        return
-
-    # Forward raw TCP traffic bidirectionally.
-    try:
         await asyncio.gather(
             pipe(client_reader, server_writer),
             pipe(server_reader, client_writer),
-            return_exceptions=True,
+        )
+    except Exception as error:
+        print(
+            f"[LoadBalancer] backend={target_host} error={error}",
+            flush=True,
         )
     finally:
-        # Measure response time and update metrics.
-        elapsed = time.perf_counter() - start_time
+        elapsed = time.perf_counter() - started
         alpha = 0.2
-        avg_response_times[target_host] = (
-            (1 - alpha) * avg_response_times[target_host] + alpha * elapsed
+        average_response_times[target_host] = (
+            (1 - alpha) * average_response_times[target_host]
+            + alpha * elapsed
         )
         active_connections[target_host] = max(
             0,
@@ -107,11 +102,10 @@ async def handle_client(client_reader, client_writer):
 async def main():
     server = await asyncio.start_server(handle_client, "0.0.0.0", 18861)
     print(
-        f"[LoadBalancer] Proxy listening on port 18861 using algorithm: "
-        f"'{ALGORITHM}'...",
+        f"[LoadBalancer] listening on 18861; algorithm={ALGORITHM}; "
+        f"backends={','.join(host for host, _ in SERVERS)}",
         flush=True,
     )
-
     async with server:
         await server.serve_forever()
 
