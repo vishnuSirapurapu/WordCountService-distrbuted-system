@@ -9,7 +9,7 @@ SERVER_HOST = "server"
 SERVER_PORT = 18861
 
 # Use the sample document and keyword for every request.
-KEYWORD = "apple"
+KEYWORD = "lorem"
 DOCUMENT = "sample.txt"
 
 # Five target request rates used in the experiment.
