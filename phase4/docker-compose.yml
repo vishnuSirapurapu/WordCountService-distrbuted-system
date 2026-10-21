@@ -1,0 +1,78 @@
+services:
+  # In-memory database used to cache previously calculated word counts.
+  redis:
+    image: redis:7.4-alpine
+    container_name: wordcount-redis
+    ports:
+      - "6379:6379"
+
+  # Server Replica 1.
+  server1:
+    build: .
+    image: ads:lab
+    container_name: wordcount-server1
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ../Documents:/app/documents
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+  
+  # Server Replica 2.
+  server2:
+    build: .
+    image: ads:lab
+    container_name: wordcount-server2
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ../Documents:/app/documents
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+
+  # Server Replica 3.
+  server3:
+    build: .
+    image: ads:lab
+    container_name: wordcount-server3
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ../Documents:/app/documents
+    depends_on:
+      - redis
+    command: ["python", "-u", "server.py"]
+
+  # Custom dynamic load balancer in front of the three explicit replicas.
+  load_balancer:
+    build: .
+    image: ads:lab
+    container_name: wordcount-loadbalancer
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "18861:18861"
+    environment:
+      - ALGORITHM=${ALGORITHM:-least_connections}
+    depends_on:
+      - server1
+      - server2
+      - server3
+    command: ["python", "-u", "load_balancer.py"]
+
+  # Client that sends keyword-count requests to the load balancer.
+  client:
+    image: ads:lab
+    container_name: wordcount-client
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - load_balancer
+    restart: on-failure
+    command: ["python", "-u", "client.py"]
+    stdin_open: true
+    tty: true
